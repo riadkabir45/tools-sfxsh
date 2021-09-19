@@ -2,7 +2,7 @@
 
 
 
-sfxsh tries to bring sfx to sh. Its almost independent. as it only needs dd and made for sh.
+sfxsh tries to bring sfx to sh. Its almost independent. as it only needs busybox.
 
 
 
