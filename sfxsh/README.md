@@ -44,7 +44,7 @@ workdir/
 
 ### Build 
 
-build will output the ready to run script in workdir/out/script.sh
+build will output the ready to run script in workdir/out/sfx
 
 Beware! The script contains files embedded. So dont open in GUI editors or might crash
 
