@@ -41,8 +41,7 @@ Beware! The script contains files embedded. So dont open in GUI editors or might
 Currently the script only supports one function which is cpa
 
 ```
-Usage: cpa ASSET_NAME WHERE_TO_COPY
-Copies the asset files from embedded structure to a file system.
-Though this might look like cp wrapper.But it is not.
+Usage: extract WHERE_TO_EXTRACT
+Extracts the asset files from embedded structure to a file system.
 ```
 
