@@ -23,7 +23,7 @@ configure creates a workdir. The structure of workdir is:
 
 ```
 workdir/
-├── assets #Conatins files to be embeded. Folder not supported(Use zip)
+├── assets #Conatins files to be embeded. (!Folder supported with preserve attributes)
 ├── init #The Script to run when executed
 ├── out #The built scipt will be throwed here
 └── tmp #A folder to use while building
