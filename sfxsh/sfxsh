@@ -35,21 +35,26 @@ build()
   # Check if workdir is ok
   [ ! -d "workdir/assets" ] && [ ! -d "workdir/out" ] &&   [ ! -f "workdir/init" ]  && >&2 echo "E : workdir missing" && return 1
   
-  # Check if shebang exists
+  # Count lines
   line=$(cat workdir/init | wc -l)
+  
+  # Check if shebang exists
   headline=$(head -1 workdir/init)
-  [ "$(echo $headline | grep -o "^..")" = "#!" ] && needS=0 || needS=1
+  [ "$(echo $headline | grep -o "^..")" = "#!" ] && shebang=true
   
   # Apply shebang if not existed
-  [ "$needS" = "1" ] && echo "#!/bin/sh"
+  [ -z "$shebang" ] && echo "#!/bin/sh"
   
-  # Return 1st line if it was not shebang
-  [ "$needS" = "0" ] && echo "$headline"
+  # Return 1st line if its shebang
+  [ ! -z "$shebang" ] && echo "$headline"
   
   # Extarction line
-  echo "mkdir -p assets && sfx=\$(realpath \"\$0\")  && cd assets && tail -n+$((line+1+needS+2+1)) \"\$sfx\" |cpio -mid"
+  echo "extract(){ [ -z \"\$1\" ] && return 1; (sfx=\$(realpath \"\$0\")  && mkdir -p \"\$1\" && cd \"\$1\" && tail -n+$((line+1+$([ ! -z "$shebang" ];echo "$?")+2+1)) \"\$sfx\" |cpio -mid )2>/dev/null; }"
+
+  # Returns 1st line if its not shebang
+  [ -z "$shebang" ] && echo "$headline"
   
-  # Rest of the code excpet shebang
+  # Rest of the code excpet 1st line
   tail -n+2 workdir/init
   
   # Safety exit if coder does not
@@ -57,7 +62,7 @@ build()
   
   # Embedding all to stdout
   cd workdir/assets
-  busybox find . | cpio -o -H newc
+  find . | cpio -o -H newc
 }
 
 config()
