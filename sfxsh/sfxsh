@@ -1,119 +1,81 @@
 #!/bin/sh
-MBR="256"
 
-adds(){
-    local size=$(($1-$(stat -c%s "$2")))
-    local i=0
-    while [ "$i" -lt "$((size-1))" ]
-    do
-        echo -n " " && i=$((i+1))
-        [ "$((i%100))" = "99" ] && echo "" && i=$((i+1))
-    done>>"$2"
-    echo "">>"$2"
+# Enable exit on error
+set -e
+
+# Cleanup function
+cleanup()
+{
+  error="$?"
+  [ "$error" = "0" ] && return 0
+  echo "E : Error occured $?"
+  [ -f "workdir/out/sh" ] && rm workdir/out/sfx
+  return $error
 }
 
+# Trigger cleanup on exit if error is not 0
+trap 'cleanup' EXIT
 
-modules(){
-cat<<'EOF'
-asset()(
-        i=0
-        while true
-        do
-                i=$((i+1))
-                eval "[ \"$1\" = \"\$ASSET$i\" ] && found=\"true\""
-                [ "$found" = "true" ] && break
-                eval "[ -z \"\$ASSET$i\" ] && break"
-        done
-        [ "$found" = "true" ] && echo "$i"
-)
-cpa()(
-    index=$(asset "$1")
-    [ ! -z "$index" ] && eval "dd if="$0" iflag=skip_bytes of="$2" bs=\$ASIZE$index count=1 skip=\$((ASEEK$index+HEAD)) status=none" || echo "Asset $1 not found"
-)
-EOF
-}
-
-header(){
-cat<<ABC
-#!/bin/sh
-HEAD=$HEAD
-ABC
-}
-
-footer(){
-cat<<ABC
-
-exit 0
-
-ABC
-}
-
-gen_assetInfo(){
-    local OIFS=$IFS
-    IFS='
-'
-    [ -e "workdir/tmp/asset" ] && rm "workdir/tmp/asset" 
-    local i=0
-    local seek=0
-    for files in $(find workdir/assets)
-    do
-        if [ ! "$i" = "0" ]
-        then 
-            local sFile=$(basename $files)
-            local iSize=$(stat -c%s $files)
-            echo "ASSET$i=\"$sFile\""
-            echo "ASIZE$i=\"$iSize\""
-            echo "ASEEK$i=\"$seek\""
-            cat $files>>"workdir/tmp/asset"
-            seek=$((seek+$iSize))
-        fi
-        i=$((i+1))
-    done
-    IFS=$OIFS
-}
-
-config(){
-    [ -e "workdir" ] && rm -R workdir 
-    mkdir workdir
-    mkdir workdir/assets
-    mkdir workdir/out
-    mkdir workdir/tmp
-    echo "# This script will be sourced to be executed">workdir/init
-    exit 0
-}
-
-build(){
-    gen_assetInfo>workdir/tmp/asset.info
-    modules>workdir/tmp/modules
-    footer>workdir/tmp/footer
-    HEAD=$(($MBR+$(stat -c%s "workdir/tmp/asset.info")+\
-        $(stat -c%s "workdir/tmp/modules")+\
-        $(stat -c%s "workdir/init")+\
-        $(stat -c%s "workdir/tmp/footer")))
-    header>workdir/tmp/hedder
-    adds $MBR workdir/tmp/hedder
-    cat workdir/tmp/hedder>workdir/out/script.sh
-    cat workdir/tmp/asset.info>>workdir/out/script.sh
-    cat workdir/tmp/modules>>workdir/out/script.sh
-    cat workdir/init>>workdir/out/script.sh
-    cat workdir/tmp/footer>>workdir/out/script.sh
-    cat workdir/tmp/asset>>workdir/out/script.sh
-    rm workdir/tmp/*
-    exit 0
-}
-
-help(){
+# Show usage function
+usage()
+{
 cat<<EOF
 Usage: sfxsh OPTION
-Creates a script with files embeded. Only dependency is sh and dd.
+Create a script with files or folders embedded
 
-  configure       Creates a workdir,
-  build           Builds the workdir to script
-
+Options:
+  configure      Create a workdir
+  build          Build the workdir to a script in workdir/out
 EOF
 }
 
+# Build workdir to script(All of its stdout will go to script)
+build()
+{
+  # Check if workdir is ok
+  [ ! -d "workdir/assets" ] && [ ! -d "workdir/out" ] &&   [ ! -f "workdir/init" ]  && >&2 echo "E : workdir missing" && return 1
+  
+  # Check if shebang exists
+  line=$(cat workdir/init | wc -l)
+  headline=$(head -1 workdir/init)
+  [ "$(echo $headline | grep -o "^..")" = "#!" ] && needS=0 || needS=1
+  
+  # Apply shebang if not existed
+  [ "$needS" = "1" ] && echo "#!/bin/sh"
+  
+  # Return 1st line if it was not shebang
+  [ "$needS" = "0" ] && echo "$headline"
+  
+  # Extarction line
+  echo "mkdir -p assets && sfx=\$(realpath \"\$0\")  && cd assets && tail -n+$((line+1+needS+2+1)) \"\$sfx\" |cpio -mid"
+  
+  # Rest of the code excpet shebang
+  tail -n+2 workdir/init
+  
+  # Safety exit if coder does not
+  echo -e "\nexit 0"
+  
+  # Embedding all to stdout
+  cd workdir/assets
+  busybox find . | cpio -o -H newc
+}
 
-[ "$1" = "configure" ] && config
-[ "$1" = "build" ] && build
-help
+config()
+{
+  # Create necessary structure
+  mkdir -p workdir/assets
+  mkdir -p workdir/out
+  touch workdir/init
+}
+
+case "$1" in
+  configure)
+    config;;
+  build)
+    # Pipe build stdout to script
+    build>workdir/out/sfx;;
+  *)
+     usage;;
+esac
+
+exit 0
